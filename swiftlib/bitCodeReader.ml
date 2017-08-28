@@ -141,7 +141,7 @@ let read_vbr size =
 ;;
 
 
-let char_of_fields (fields:int64 array) = 
+let char_of_fields (fields:int64 array):string = 
 	let rec char_of_fields1 str i =
 		if i >= (Array.length fields) then
 			str
@@ -251,6 +251,7 @@ let read_abbrev_field op_def =
 ;;
 
 let read_record (cur_block:block) (abbrevID:int64):record =
+	let loc = (globals.curs.byte * 8) + globals.curs.byte in
 	if (Int64.compare abbrevID unabbrev_record_id) = 0 then
 		let code = read_vbr (Int64.of_int 6) in
 		let num_fields = read_vbr (Int64.of_int 6) in
@@ -263,7 +264,7 @@ let read_record (cur_block:block) (abbrevID:int64):record =
 				readFields fields (i+1)
 		in
 		let fields = readFields [||] 0 in
-		{code=code; abbrive_id=abbrevID; ops= [||]; op_values=[|fields|]; name=""};
+		{loc=loc; code=code; abbrive_id=abbrevID; ops= [||]; op_values=[|fields|]; name=""};
 	else
 		let abb_def = get_abbreve_def cur_block.abbrev_defs abbrevID in
 		let length = (Array.length abb_def.abbrev_ops) in
@@ -297,6 +298,7 @@ let read_record (cur_block:block) (abbrevID:int64):record =
 						if i >= Int64.to_int(numItems) then
 							begin
 							align_32_bits();
+							(*Printf.printf "BLOB %s\n" (char_of_fields bFields);*)
 							{abb_record with op_values=(Array.append abb_record.op_values [|bFields|]) }
 							end
 						else
@@ -309,7 +311,7 @@ let read_record (cur_block:block) (abbrevID:int64):record =
 					let field = read_abbrev_field op_def in
 					read_fields (fields_left+1) {abb_record with op_values=(Array.append abb_record.op_values [|[|field|]|] ) };
 		in
-		let r = read_fields 0 {code=abbrevID; ops=abb_def.abbrev_ops; abbrive_id=abbrevID; op_values=[||]; name="" } in
+		let r = read_fields 0 {loc=loc; code=abbrevID; ops=abb_def.abbrev_ops; abbrive_id=abbrevID; op_values=[||]; name="" } in
 		let r_code = r.op_values.(0).(0) in
 		{r with code=r_code; name=(get_record_name cur_block.block_id r_code)}
 ;;
@@ -357,6 +359,8 @@ let read_records (codesize:int64) (cur_block:block) (read_subblock):block =
 			end
 		else if (Int64.compare abbriv_id define_abbrev) = 0 then (* DEFINE_ABBREV *)
 			begin
+				let loc = (globals.curs.byte * 8) + globals.curs.byte in
+				(*Printf.printf "ABBRIV loc=%d\n" (loc);*)
 				let defs = read_abbreviated_def cur_block.abbrev_defs in
 				if (Int64.compare cur_block.block_id blockinfo_block_id) = 0 then
 					begin
@@ -368,7 +372,7 @@ let read_records (codesize:int64) (cur_block:block) (read_subblock):block =
 			end
 		else
 			let record = read_record cur_block abbriv_id in
-			(*Printf.printf "RECORD name=%s BID=%d abbriv_id=%d code=%d\n" record.name (Int64.to_int cur_block.block_id) (Int64.to_int record.abbrive_id) (Int64.to_int record.code);*)
+			(*Printf.printf "RECORD name=%s BID=%d abbriv_id=%d code=%d loc=%d\n" record.name (Int64.to_int cur_block.block_id) (Int64.to_int record.abbrive_id) (Int64.to_int record.code) record.loc;*)
 			if (Int64.compare cur_block.block_id blockinfo_block_id) = 0 && (Int64.compare record.code (Int64.of_int 3) ) <= 0 then
 				if (Int64.compare record.code blockinfo_code_setbid) <= 0 then
 					let bid = record.op_values.(0).(0) in
@@ -410,8 +414,9 @@ let rec read_subblock():block =
 	align_32_bits();
 	let block_length = read_fixed_int block_size_width in
 	let defs = get_global_abbrevs block_id in
-	let cur_block = {block_id=block_id; abbreviation_width=abbr_len; length=block_length; abbrev_defs=defs; records=[||]; sub_blocks=[||]; name=(get_block_name block_id)} in
-	(*Printf.printf "BLOCK: %s ID=%d  abbriv size: %d Length: %d\n" cur_block.name (Int64.to_int block_id) (Int64.to_int abbr_len) (Int64.to_int block_length);*)
+	let loc = (globals.curs.byte * 8) + globals.curs.byte in
+	let cur_block = {loc=loc; block_id=block_id; abbreviation_width=abbr_len; length=block_length; abbrev_defs=defs; records=[||]; sub_blocks=[||]; name=(get_block_name block_id)} in
+	(*Printf.printf "BLOCK: %s ID=%d  abbriv size: %d Length: %d loc-%d\n" cur_block.name (Int64.to_int block_id) (Int64.to_int abbr_len) (Int64.to_int block_length) loc;*)
 	read_records abbr_len cur_block read_subblock
 ;;
 
@@ -432,7 +437,6 @@ let read_top_block() =
 	in
 	read_blocks [||];
 ;;
-
 
 let read_bitcode (src:string) =
 	globals.bytes <- (load_file src);

@@ -11,9 +11,9 @@ type record_name = {code:int64; name:string};;
 
 type global_abbr_defs = {abbriv_id:int64; mutable block_name:string; defs:abbrev_def array; record_names:record_name array};;
 
-type record = {code:int64; abbrive_id:int64; ops:bitcode_abbrev_op array; op_values:int64 array array; name:string};;
+type record = {loc:int; code:int64; abbrive_id:int64; ops:bitcode_abbrev_op array; op_values:int64 array array; name:string};;
 
-type block = {block_id:int64; abbreviation_width:int64; length:int64; abbrev_defs:abbrev_def array; records:record array; sub_blocks:block array; name:string};;
+type block = {loc:int; block_id:int64; abbreviation_width:int64; length:int64; abbrev_defs:abbrev_def array; records:record array; sub_blocks:block array; name:string};;
 
 let first_applicatoin_block_id = Int64.of_int 8;;
 
